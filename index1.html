@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Buscador de Wikipedia Online</title>
+    <style>
+        body {
+            font-family: system-ui, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 1rem;
+            background: #f4f4f4;
+        }
+        .buscador {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        input {
+            flex: 1;
+            padding: 0.7rem;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        button {
+            padding: 0.7rem 1.2rem;
+            background: #2c5f8a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:active {
+            background: #1a3f5c;
+        }
+        .resultado {
+            background: white;
+            padding: 1.2rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        hr {
+            margin: 1rem 0;
+        }
+        .titulo-articulo {
+            cursor: pointer;
+            color: #2c5f8a;
+            text-decoration: underline;
+            margin: 0.3rem 0;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .boton-resumen {
+            background: #4a6f3c;
+            margin-left: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>📚 Buscador de Wikipedia (Online)</h1>
+    <div class="buscador">
+        <input type="text" id="consulta" placeholder="Ejemplo: Apple Macintosh, Inteligencia Artificial, Río Amazonas..." autocomplete="off">
+        <button onclick="buscar()">Buscar</button>
+        <button id="btnResumen" class="boton-resumen" onclick="resumirSeleccion()">✨ Resumir selección (DeepSeek)</button>
+    </div>
+    <div id="resultado" class="resultado">
+        Escribe un tema y presiona "Buscar".
+    </div>
+
+    <script>
+        // Función para buscar artículos
+        async function buscar() {
+            const consulta = document.getElementById('consulta').value.trim();
+            if (!consulta) return;
+            
+            const resultadoDiv = document.getElementById('resultado');
+            resultadoDiv.innerHTML = '<div class="loading">🔍 Buscando en Wikipedia...</div>';
+            
+            try {
+                // 1. Buscar títulos que coincidan con la consulta
+                const searchUrl = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(consulta)}&format=json&origin=*`;
+                const respuestaBusqueda = await fetch(searchUrl);
+                const datosBusqueda = await respuestaBusqueda.json();
+                
+                const resultados = datosBusqueda.query.search;
+                if (!resultados.length) {
+                    resultadoDiv.innerHTML = '<div>❌ No se encontraron artículos. Intenta con otro término.</div>';
+                    return;
+                }
+                
+                // Mostrar lista de títulos encontrados
+                let html = '<div><strong>📖 Artículos encontrados:</strong><ul>';
+                for (let item of resultados.slice(0, 8)) {  // máximo 8 resultados
+                    html += `<li><span class="titulo-articulo" onclick="cargarArticulo('${item.title.replace(/'/g, "\\'")}')">📄 ${item.title}</span></li>`;
+                }
+                html += '</ul><hr><div id="texto-articulo">🔹 Haz clic en un título para leer el contenido.</div></div>';
+                resultadoDiv.innerHTML = html;
+                
+            } catch (error) {
+                resultadoDiv.innerHTML = '<div>⚠️ Error de conexión. Verifica tu internet.</div>';
+                console.error(error);
+            }
+        }
+        
+        // Función para cargar el texto completo de un artículo
+        async function cargarArticulo(titulo) {
+            const textoDiv = document.getElementById('texto-articulo');
+            if (!textoDiv) return;
+            
+            textoDiv.innerHTML = '<div class="loading">📥 Cargando artículo...</div>';
+            
+            try {
+                // Obtener extracto en texto plano
+                const extractUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titulo)}&prop=extracts&explaintext=1&format=json&origin=*`;
+                const respuestaExtracto = await fetch(extractUrl);
+                const datosExtracto = await respuestaExtracto.json();
+                
+                const pages = datosExtracto.query.pages;
+                const pageId = Object.keys(pages)[0];
+                const contenido = pages[pageId].extract || "⚠️ No se pudo obtener el texto.";
+                
+                textoDiv.innerHTML = `
+                    <strong>📄 ${titulo}</strong>
+                    <div style="margin-top: 12px; white-space: pre-wrap;">${contenido}</div>
+                    <div style="margin-top: 12px; font-size: 0.8rem; color: gray;">
+                        💡 Puedes seleccionar texto y luego presionar "Resumir selección".
+                    </div>
+                `;
+            } catch (error) {
+                textoDiv.innerHTML = '<div>❌ Error al cargar el artículo.</div>';
+                console.error(error);
+            }
+        }
+        
+        // Función para resumir texto seleccionado usando DeepSeek (concepto)
+        function resumirSeleccion() {
+            const seleccion = window.getSelection().toString().trim();
+            if (!seleccion) {
+                alert("Selecciona primero un texto del artículo.");
+                return;
+            }
+            
+            // Mostrar ventana con el resumen (versión demo offline)
+            const resultadoDiv = document.getElementById('resultado');
+            const resumenPopup = document.createElement('div');
+            resumenPopup.className = 'resultado';
+            resumenPopup.style.marginTop = '20px';
+            resumenPopup.style.background = '#e6f2e6';
+            resumenPopup.innerHTML = `
+                <strong>✨ Resumen (DeepSeek - modo demostración)</strong>
+                <p>Texto seleccionado: <em>"${seleccion.substring(0, 200)}${seleccion.length > 200 ? '…' : ''}"</em></p>
+                <p>🔧 En una versión real, esto enviaría el texto a la API de DeepSeek para obtener un resumen inteligente.</p>
+                <p>💡 <strong>Filosofía minimalista:</strong> Este paso gasta energía solo cuando decides resumir. Buscar y leer no consume IA.</p>
+                <button onclick="this.parentElement.remove()">Cerrar</button>
+            `;
+            resultadoDiv.appendChild(resumenPopup);
+            
+            // Scroll suave
+            resumenPopup.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        
+        // Permitir buscar con tecla Enter
+        document.getElementById('consulta').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') buscar();
+        });
+    </script>
+</body>
+</html>
